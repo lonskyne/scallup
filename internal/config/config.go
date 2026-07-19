@@ -1,0 +1,59 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
+type Config struct {
+	Port      int
+	NodeID    string
+	RaftPort  int
+	DataDir   string
+	Bootstrap bool
+}
+
+func Load() *Config {
+	return &Config{
+		Port:      getEnvInt("PORT", 8080),
+		NodeID:    getEnv("NODE_ID", "node1"),
+		RaftPort:  getEnvInt("RAFT_PORT", 9090),
+		DataDir:   getEnv("DATA_DIR", "./data"),
+		Bootstrap: getEnvBool("BOOTSTRAP", false),
+	}
+}
+
+func (c *Config) APIAddr() string {
+	return fmt.Sprintf(":%d", c.Port)
+}
+
+func (c *Config) RaftAddr() string {
+	return fmt.Sprintf("127.0.0.1:%d", c.RaftPort)
+}
+
+// Helper functions
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.ParseBool(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
