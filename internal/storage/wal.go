@@ -6,7 +6,6 @@ import (
     "fmt"
     "os"
     "sync"
-		"context"
 )
 
 // WALEntry represents a single operation in the log
@@ -29,15 +28,17 @@ type WAL struct {
 // NewWAL creates or opens a WAL
 func NewWAL(walFilePath string) (*WAL, error) {
     // Open file in append mode, create if doesn't exist
-    file, err := os.OpenFile(walFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+    file, err := os.OpenFile(walFilePath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
     if err != nil {
         return nil, fmt.Errorf("failed to open WAL: %w", err)
     }
 
+		writer := bufio.NewWriter(file)
+
     return &WAL{
-        walFile:    file,
-        writer:  bufio.NewWriter(file),
-        encoder: json.NewEncoder(file),
+        walFile: file,
+        writer:  writer,
+        encoder: json.NewEncoder(writer),
     }, nil
 }
 
@@ -80,37 +81,4 @@ func (w *WAL) Close() error {
         return err
     }
     return w.walFile.Close()
-}
-
-// Replay reads the WAL and applies operations to the store
-func (w *WAL) Replay(store *MemoryStore) error {
-    w.mu.Lock()
-    defer w.mu.Unlock()
-
-    scanner := bufio.NewScanner(w.walFile)
-    // Increase buffer size for large entries
-    scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-
-    var entry WALEntry
-    for scanner.Scan() {
-        if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-            return fmt.Errorf("failed to parse WAL entry: %w", err)
-        }
-
-        // Apply the operation to memory store
-        switch entry.Operation {
-        case "SET":
-            store.Put(context.Background(), entry.Key, entry.Value)
-        case "DELETE":
-            store.Delete(context.Background(), entry.Key)
-        default:
-            return fmt.Errorf("unknown operation in WAL: %s", entry.Operation)
-        }
-    }
-
-    if err := scanner.Err(); err != nil {
-        return fmt.Errorf("error reading WAL: %w", err)
-    }
-
-    return nil
 }

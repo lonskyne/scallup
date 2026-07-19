@@ -34,25 +34,25 @@ func (m *MemoryStore) Get(ctx context.Context, key string) (string, bool, error)
 }
 
 func (m *MemoryStore) Put(ctx context.Context, key, value string) error {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    
 		if err := m.wal.Append("SET", key, value); err != nil {
         return fmt.Errorf("failed to write to WAL: %w", err)
     }
 
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    
     m.store[key] = value
     return nil
 }
 
 func (m *MemoryStore) Delete(ctx context.Context, key string) error {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    
 		if err := m.wal.Append("DELETE", key, ""); err != nil {
         return fmt.Errorf("failed to write to WAL: %w", err)
     }
 
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    
     delete(m.store, key)
     return nil
 }

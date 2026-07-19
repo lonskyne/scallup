@@ -3,9 +3,11 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"sync"
+	"errors"
 
 	"encoding/json"
 )
@@ -43,7 +45,10 @@ func NewJSONFileStore(filePath string, walFilePath string) (*JSONFileStore, erro
   store.mu.Lock()
   defer store.mu.Unlock()
 
-	store.loadJSONFileIfExists(decoder);
+	err = store.loadJSONFileIfExists(decoder);
+	if err != nil {
+		return nil, fmt.Errorf("Failed to load JSON file: %w", err)
+	}
 
 	return store, nil
 }
@@ -57,25 +62,25 @@ func (m *JSONFileStore) Get(ctx context.Context, key string) (string, bool, erro
 }
 
 func (m *JSONFileStore) Put(ctx context.Context, key, value string) error {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+
 		if err := m.wal.Append("SET", key, value); err != nil {
         return fmt.Errorf("failed to write to WAL: %w", err)
     }
-		
-    m.mu.Lock()
-    defer m.mu.Unlock()
     
     m.store[key] = value
     return m.writeJSONFile()
 }
 
 func (m *JSONFileStore) Delete(ctx context.Context, key string) error {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    
 		if err := m.wal.Append("DELETE", key, ""); err != nil {
         return fmt.Errorf("failed to write to WAL: %w", err)
     }
 
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    
     delete(m.store, key)
     return m.writeJSONFile()
 }
@@ -92,6 +97,11 @@ func (m *JSONFileStore) GetAll(ctx context.Context) (map[string]string, error) {
 }
 
 func (m *JSONFileStore) Close() error {
+		err := m.file.Close()
+		if err != nil {
+			return err
+		}
+
     return m.wal.Close()
 }
 
@@ -108,7 +118,7 @@ func (m *JSONFileStore) writeJSONFile() error {
 		return err
 	}
 
-	return nil
+	return m.file.Sync()
 }
 
 func (m *JSONFileStore) loadJSONFileIfExists(decoder *json.Decoder) error {
@@ -117,6 +127,9 @@ func (m *JSONFileStore) loadJSONFileIfExists(decoder *json.Decoder) error {
   }
 
 	if err := decoder.Decode(&m.store); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
 		return fmt.Errorf("failed to load JSON file store: %w", err)
 	}
 
