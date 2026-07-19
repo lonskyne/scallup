@@ -12,6 +12,8 @@ type Config struct {
 	RaftPort  int
 	DataDir   string
 	Bootstrap bool
+	DBType    string
+	DBName    string
 }
 
 func Load() *Config {
@@ -21,6 +23,8 @@ func Load() *Config {
 		RaftPort:  getEnvInt("RAFT_PORT", 9090),
 		DataDir:   getEnv("DATA_DIR", "./data"),
 		Bootstrap: getEnvBool("BOOTSTRAP", false),
+		DBType:    getEnv("DB_TYPE", "memory"),
+		DBName:    getEnv("DB_NAME", "test_db"),
 	}
 }
 

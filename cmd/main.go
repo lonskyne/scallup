@@ -1,17 +1,18 @@
 package main
 
 import (
-    "context"
-    "log"
-    "net/http"
-    "os"
-    "os/signal"
-    "syscall"
-    "time"
+	"context"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+	"time"
 
-    "github.com/lonskyne/scallup/internal/api"
-    "github.com/lonskyne/scallup/internal/config"
-    "github.com/lonskyne/scallup/internal/storage"
+	"github.com/lonskyne/scallup/internal/api"
+	"github.com/lonskyne/scallup/internal/config"
+	"github.com/lonskyne/scallup/internal/storage"
 )
 
 func main() {
@@ -19,8 +20,8 @@ func main() {
     cfg := config.Load()
     
     // Initialize storage
-    store := storage.NewMemoryStore()
-    defer store.Close()
+    store := createStore(cfg)
+		defer store.Close()
     
     // Setup routes
     router := api.SetupRoutes(store)
@@ -57,4 +58,15 @@ func main() {
     }
     
     log.Println("Server stopped")
+}
+
+func createStore(cfg *config.Config) storage.Engine {
+	switch(cfg.DBType) {
+	case "memory":
+		return storage.NewMemoryStore()
+	case "jsonfile":
+		return storage.NewJSONFileStore(filepath.Join(cfg.DataDir, cfg.DBName + ".json"))
+	}
+
+	return storage.NewMemoryStore()
 }
