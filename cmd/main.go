@@ -20,7 +20,11 @@ func main() {
     cfg := config.Load()
     
     // Initialize storage
-    store := createStore(cfg)
+    store, err := createStore(cfg)
+		if err != nil {
+			log.Printf("failed creating db endgine: %s", err)
+			return
+		}
 		defer store.Close()
     
     // Setup routes
@@ -60,13 +64,14 @@ func main() {
     log.Println("Server stopped")
 }
 
-func createStore(cfg *config.Config) storage.Engine {
+func createStore(cfg *config.Config) (storage.Engine, error) {
+	walFilePath := filepath.Join(cfg.DataDir, cfg.DBName + ".wal")
 	switch(cfg.DBType) {
 	case "memory":
-		return storage.NewMemoryStore()
+		return storage.NewMemoryStore(walFilePath)
 	case "jsonfile":
-		return storage.NewJSONFileStore(filepath.Join(cfg.DataDir, cfg.DBName + ".json"))
+		return storage.NewJSONFileStore(filepath.Join(cfg.DataDir, cfg.DBName + ".json"), walFilePath)
 	}
 
-	return storage.NewMemoryStore()
+	return storage.NewMemoryStore(walFilePath)
 }

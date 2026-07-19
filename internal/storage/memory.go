@@ -4,17 +4,25 @@ import (
 	"context"
 	"maps"
 	"sync"
+	"fmt"
 )
 
 type MemoryStore struct {
     mu    sync.RWMutex
     store map[string]string
+		wal   *WAL
 }
 
-func NewMemoryStore() *MemoryStore {
+func NewMemoryStore(walFilePath string) (*MemoryStore, error) {
+	 	wal, err := NewWAL(walFilePath)
+    if err != nil {
+			return nil, fmt.Errorf("failed to create WAL object: %w", err)
+    }
+
     return &MemoryStore{
         store: make(map[string]string),
-    }
+				wal:   wal,
+    }, nil
 }
 
 func (m *MemoryStore) Get(ctx context.Context, key string) (string, bool, error) {
@@ -26,6 +34,10 @@ func (m *MemoryStore) Get(ctx context.Context, key string) (string, bool, error)
 }
 
 func (m *MemoryStore) Put(ctx context.Context, key, value string) error {
+		if err := m.wal.Append("SET", key, value); err != nil {
+        return fmt.Errorf("failed to write to WAL: %w", err)
+    }
+
     m.mu.Lock()
     defer m.mu.Unlock()
     
@@ -34,6 +46,10 @@ func (m *MemoryStore) Put(ctx context.Context, key, value string) error {
 }
 
 func (m *MemoryStore) Delete(ctx context.Context, key string) error {
+		if err := m.wal.Append("DELETE", key, ""); err != nil {
+        return fmt.Errorf("failed to write to WAL: %w", err)
+    }
+
     m.mu.Lock()
     defer m.mu.Unlock()
     
@@ -53,5 +69,5 @@ func (m *MemoryStore) GetAll(ctx context.Context) (map[string]string, error) {
 }
 
 func (m *MemoryStore) Close() error {
-    return nil
+    return m.wal.Close()
 }
