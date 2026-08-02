@@ -22,7 +22,7 @@ func main() {
     // Initialize storage
     store, err := createStore(cfg)
 		if err != nil {
-			log.Printf("failed creating db endgine: %s", err)
+			log.Printf("failed creating db engine: %s", err)
 			return
 		}
 		defer store.Close()

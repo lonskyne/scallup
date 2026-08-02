@@ -35,10 +35,16 @@ func NewWAL(walFilePath string) (*WAL, error) {
 
 		writer := bufio.NewWriter(file)
 
+		prevLastIndex, err := getLastIndexFromWAL(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get last index from WAL: %w", err)
+		}
+
     return &WAL{
-        walFile: file,
-        writer:  writer,
-        encoder: json.NewEncoder(writer),
+        walFile:   file,
+        writer:    writer,
+        encoder:   json.NewEncoder(writer),
+				lastIndex: prevLastIndex,
     }, nil
 }
 
@@ -81,4 +87,48 @@ func (w *WAL) Close() error {
         return err
     }
     return w.walFile.Close()
+}
+
+func getLastIndexFromWAL(file *os.File) (int, error) {
+		fileInfo, err := file.Stat()
+		if err != nil {
+			return -1, fmt.Errorf("failed to get WAL stat: %w", err)
+		}
+		
+		if fileInfo.Size() <= 0 {
+			return 0, nil
+		}
+
+		prevLastIndex := 0
+		readOffset := fileInfo.Size() - 1
+		var buf [1]byte
+
+		for buf[0] != '{' && readOffset >= 0 {
+			_, err := file.ReadAt(buf[:], readOffset)
+			if err != nil {
+				return -1, fmt.Errorf("failed to read WAL lastIndex: %w", err)
+			}
+			
+			readOffset--
+		}
+
+		start := readOffset + 1
+		length := fileInfo.Size() - start
+		lastLine := make([]byte, length)
+
+		_, err = file.ReadAt(lastLine, start)
+		if err != nil {
+			return -1, fmt.Errorf("failed to read WAL lastLine: %w", err)
+		}
+
+		var lastEntry WALEntry
+
+		err = json.Unmarshal(lastLine, &lastEntry)
+		if err != nil {
+			return -1, fmt.Errorf("failed to unmarshal last entry in WAL: %w", err)
+		}
+
+		prevLastIndex = lastEntry.Index
+
+		return prevLastIndex, nil
 }
