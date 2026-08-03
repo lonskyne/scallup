@@ -47,7 +47,7 @@ func NewJSONFileStore(filePath string, walFilePath string) (*JSONFileStore, erro
 
 	err = store.loadJSONFileIfExists(decoder);
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load JSON file: %w", err)
+		return nil, fmt.Errorf("failed to load JSON file: %w", err)
 	}
 
 	return store, nil
