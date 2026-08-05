@@ -7,24 +7,24 @@ import (
 )
 
 type Config struct {
-	Port      int
-	NodeID    string
-	RaftPort  int
-	DataDir   string
-	Bootstrap bool
-	DBType    string
-	DBName    string
+	Port         int
+	NodeID       string
+	RaftGrpcPort int
+	DataDir      string
+	Bootstrap    bool
+	DBType       string
+	DBName       string
 }
 
 func Load() *Config {
 	return &Config{
-		Port:      getEnvInt("PORT", 8080),
-		NodeID:    getEnv("NODE_ID", "node1"),
-		RaftPort:  getEnvInt("RAFT_PORT", 9090),
-		DataDir:   getEnv("DATA_DIR", "./data"),
-		Bootstrap: getEnvBool("BOOTSTRAP", false),
-		DBType:    getEnv("DB_TYPE", "memory"),
-		DBName:    getEnv("DB_NAME", "test_db"),
+		Port:         getEnvInt("PORT", 8080),
+		NodeID:       getEnv("NODE_ID", "node1"),
+		RaftGrpcPort: getEnvInt("RAFT_GRPC_PORT", 9090),
+		DataDir:      getEnv("DATA_DIR", "./data"),
+		Bootstrap:    getEnvBool("BOOTSTRAP", false),
+		DBType:       getEnv("DB_TYPE", "memory"),
+		DBName:       getEnv("DB_NAME", "test_db"),
 	}
 }
 
@@ -33,7 +33,7 @@ func (c *Config) APIAddr() string {
 }
 
 func (c *Config) RaftAddr() string {
-	return fmt.Sprintf("127.0.0.1:%d", c.RaftPort)
+	return fmt.Sprintf(":%d", c.RaftGrpcPort)
 }
 
 // Helper functions

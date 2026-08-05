@@ -2,17 +2,24 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/lonskyne/scallup/internal/api"
 	"github.com/lonskyne/scallup/internal/config"
+	"github.com/lonskyne/scallup/internal/raft"
 	"github.com/lonskyne/scallup/internal/storage"
+	"github.com/lonskyne/scallup/pkg/pb"
 )
 
 func main() {
@@ -46,6 +53,21 @@ func main() {
             log.Fatalf("Failed to start server: %v", err)
         }
     }()
+	
+		grpcServer := grpc.NewServer()
+		pb.RegisterRaftServer(grpcServer, raft.NewRaftServer())
+
+		listener, err := net.Listen("tcp", ":"+strconv.Itoa(cfg.RaftGrpcPort))
+		if err != nil {
+      log.Fatalf("Failed to start grpc server: %v", err)
+		}
+
+		go func() {
+      log.Printf("Starting grpc server on %s", cfg.RaftAddr())
+			if serveErr := grpcServer.Serve(listener); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
+				log.Printf("gRPC server stopped: %v", serveErr)
+			}
+		}()
     
     // Graceful shutdown
     quit := make(chan os.Signal, 1)
@@ -60,8 +82,14 @@ func main() {
     if err := server.Shutdown(ctx); err != nil {
         log.Printf("Server shutdown error: %v", err)
     }
-    
     log.Println("Server stopped")
+
+
+    log.Println("Shutting down gRPC server...")
+
+		grpcServer.Stop()
+    
+    log.Println("gRPC server stopped")
 }
 
 func createStore(cfg *config.Config) (storage.Engine, error) {
