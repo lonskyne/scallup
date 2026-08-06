@@ -1,0 +1,50 @@
+services:
+  node1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: node1
+    env_file:
+      - env/node1.env
+    ports:
+      - "50051:50051"
+
+  node2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: node2
+    env_file:
+      - env/node2.env
+    ports:
+      - "50052:50051"
+
+  node3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: node3
+    env_file:
+      - env/node3.env
+    ports:
+      - "50053:50051"
+
+  node4:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: node4
+    env_file:
+      - env/node4.env
+    ports:
+      - "50054:50051"
+
+  node5:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: node5
+    env_file:
+      - env/node5.env
+    ports:
+      - "50055:50051"

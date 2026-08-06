@@ -4,26 +4,27 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
+	NodeID       int
 	Port         int
-	NodeID       string
 	RaftGrpcPort int
+	Peers        map[int]string
 	DataDir      string
-	Bootstrap    bool
 	DBType       string
 	DBName       string
 }
 
 func Load() *Config {
 	return &Config{
+		NodeID:       getEnvInt("NODE_ID", 0),
 		Port:         getEnvInt("PORT", 8080),
-		NodeID:       getEnv("NODE_ID", "node1"),
 		RaftGrpcPort: getEnvInt("RAFT_GRPC_PORT", 9090),
-		DataDir:      getEnv("DATA_DIR", "./data"),
-		Bootstrap:    getEnvBool("BOOTSTRAP", false),
-		DBType:       getEnv("DB_TYPE", "memory"),
+		Peers: 				getEnvPeers("PEERS"),
+		DataDir:      getEnv("DATA_DIR", "~/scallup_data"),
+		DBType:       getEnv("DB_TYPE", "json_file"),
 		DBName:       getEnv("DB_NAME", "test_db"),
 	}
 }
@@ -53,11 +54,29 @@ func getEnvInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if parsed, err := strconv.ParseBool(value); err == nil {
-			return parsed
-		}
+func getEnvPeers(key string) map[int]string {
+	value := os.Getenv(key)
+
+	peers := make(map[int]string)
+
+	if value == "" {
+		return peers
 	}
-	return defaultValue
+
+	for peer := range strings.SplitSeq(value, ",") {
+		parts := strings.SplitN(peer, "=", 2)
+
+		if len(parts) != 2 {
+			continue
+		}
+
+		id, err := strconv.Atoi(parts[0])
+		if err != nil {
+			continue
+		}
+
+		peers[id] = parts[1]
+	}
+
+	return peers
 }

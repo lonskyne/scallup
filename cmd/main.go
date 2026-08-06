@@ -53,7 +53,8 @@ func main() {
             log.Fatalf("Failed to start server: %v", err)
         }
     }()
-	
+
+		// Create and start the gRPC server
 		grpcServer := grpc.NewServer()
 		pb.RegisterRaftServer(grpcServer, raft.NewRaftServer())
 
