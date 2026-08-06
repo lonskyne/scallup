@@ -69,6 +69,14 @@ func main() {
 				log.Printf("gRPC server stopped: %v", serveErr)
 			}
 		}()
+
+		node, err := raft.NewNode(cfg.NodeID, cfg.Peers)
+		if err != nil {
+			log.Fatalf("Node creation failed %w", err)
+		}
+
+		time.Sleep(1 * time.Second)
+		node.SendHeartbeats(context.Background())
     
     // Graceful shutdown
     quit := make(chan os.Signal, 1)
