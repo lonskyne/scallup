@@ -39,7 +39,7 @@ func NewNode(nodeID int, peers map[int]string) (*Node, error) {
 
 	return &Node{
 		NodeID: nodeID,
-		Peers:  peersArr, 
+		Peers:  peersArr,
 	}, nil
 }
 
@@ -47,11 +47,11 @@ func (n *Node) SendHeartbeats(ctx context.Context) {
 	log.Printf("SENDING HEARTBEATS")
 	for _, peer := range n.Peers {
 		_, err := peer.Client.AppendEntries(ctx, &pb.AppendEntriesRequest{
-			Term: 0,
-			LeaderId: 0,
+			Term:         0,
+			LeaderId:     0,
 			PrevLogIndex: 0,
-			PrevLogTerm: 0,
-			Entries: nil,
+			PrevLogTerm:  0,
+			Entries:      nil,
 		})
 
 		if err != nil {

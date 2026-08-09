@@ -22,7 +22,7 @@ func Load() *Config {
 		NodeID:       getEnvInt("NODE_ID", 0),
 		Port:         getEnvInt("PORT", 8080),
 		RaftGrpcPort: getEnvInt("RAFT_GRPC_PORT", 9090),
-		Peers: 				getEnvPeers("PEERS"),
+		Peers:        getEnvPeers("PEERS"),
 		DataDir:      getEnv("DATA_DIR", "~/scallup_data"),
 		DBType:       getEnv("DB_TYPE", "json_file"),
 		DBName:       getEnv("DB_NAME", "test_db"),

@@ -18,8 +18,8 @@ func NewRaftServer() *RaftServer {
 func (rs *RaftServer) RequestVote(ctx context.Context, req *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
 	log.Printf("Received RequestVote rpc")
 
-	return &pb.RequestVoteResponse {
-		Term: 0,
+	return &pb.RequestVoteResponse{
+		Term:        0,
 		VoteGranted: false,
 	}, nil
 }
@@ -27,8 +27,8 @@ func (rs *RaftServer) RequestVote(ctx context.Context, req *pb.RequestVoteReques
 func (rs *RaftServer) AppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.Printf("Received AppendEntries rpc")
 
-	return &pb.AppendEntriesResponse {
-		Term: 0,
+	return &pb.AppendEntriesResponse{
+		Term:    0,
 		Success: false,
 	}, nil
 }
