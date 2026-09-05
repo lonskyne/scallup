@@ -14,6 +14,8 @@ type WALEntry struct {
 	Operation string `json:"op"` // "SET", "DELETE"
 	Key       string `json:"key"`
 	Value     string `json:"value"` // Empty for DELETE
+
+	Term      int    `json:"term"`
 }
 
 // WAL handles write-ahead logging
@@ -79,6 +81,30 @@ func (w *WAL) Append(op, key, value string) error {
 	return nil
 }
 
+func (w *WAL) GetFullLog() ([]WALEntry, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	var fullLog []WALEntry
+	
+	scanner := bufio.NewScanner(w.walFile)
+	for scanner.Scan() {
+		var logEntry WALEntry 
+
+		err := json.Unmarshal(scanner.Bytes(), &logEntry)
+		if err != nil {
+			return nil, err
+		}
+		fullLog = append(fullLog, logEntry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return fullLog, nil
+}
+
 func (w *WAL) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -96,7 +122,7 @@ func getLastIndexFromWAL(file *os.File) (int, error) {
 	}
 
 	if fileInfo.Size() <= 0 {
-		return 0, nil
+		return 1, nil
 	}
 
 	prevLastIndex := 0

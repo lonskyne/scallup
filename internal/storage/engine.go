@@ -9,4 +9,6 @@ type Engine interface {
 	Delete(ctx context.Context, key string) error
 	GetAll(ctx context.Context) (map[string]string, error)
 	Close() error
+
+	GetWAL() *WAL
 }

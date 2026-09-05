@@ -70,13 +70,14 @@ func main() {
 		}
 	}()
 
-	node, err := raft.NewNode(cfg.NodeID, cfg.Peers)
-	if err != nil {
-		log.Fatalf("Node creation failed %w", err)
-	}
 
-	time.Sleep(1 * time.Second)
-	node.SendHeartbeats(context.Background())
+	wal := store.GetWAL()
+	raftStorageFilePath := filepath.Join(cfg.DataDir, cfg.DBName+".raft")
+	node, err := raft.NewRaftNode(cfg.NodeID, cfg.Peers, raftStorageFilePath, wal)
+	if err != nil {
+		log.Fatalf("Node creation failed %v", err)
+	}
+	node.Initialize(context.Background())
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

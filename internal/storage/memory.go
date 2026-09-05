@@ -71,3 +71,7 @@ func (m *MemoryStore) GetAll(ctx context.Context) (map[string]string, error) {
 func (m *MemoryStore) Close() error {
 	return m.wal.Close()
 }
+
+func (m *MemoryStore) GetWAL() *WAL {
+	return m.wal
+}

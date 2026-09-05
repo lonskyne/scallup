@@ -105,6 +105,10 @@ func (m *JSONFileStore) Close() error {
 	return m.wal.Close()
 }
 
+func (m *JSONFileStore) GetWAL() *WAL {
+	return m.wal
+}
+
 func (m *JSONFileStore) writeJSONFile() error {
 	if err := m.file.Truncate(0); err != nil {
 		return err
@@ -135,3 +139,4 @@ func (m *JSONFileStore) loadJSONFileIfExists(decoder *json.Decoder) error {
 
 	return nil
 }
+
