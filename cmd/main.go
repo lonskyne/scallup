@@ -53,10 +53,19 @@ func main() {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
+	
+	// Create the raft node
+	wal := store.GetWAL()
+	raftStorageFilePath := filepath.Join(cfg.DataDir, cfg.DBName+".raft")
+	node, err := raft.NewRaftNode(cfg.NodeID, cfg.Peers, raftStorageFilePath, wal)
+	if err != nil {
+		log.Fatalf("Node creation failed %v", err)
+	}
+	node.Initialize(context.Background())
 
 	// Create and start the gRPC server
 	grpcServer := grpc.NewServer()
-	pb.RegisterRaftServer(grpcServer, raft.NewRaftServer())
+	pb.RegisterRaftServer(grpcServer, raft.NewRaftServer(node))
 
 	listener, err := net.Listen("tcp", ":"+strconv.Itoa(cfg.RaftGrpcPort))
 	if err != nil {
@@ -69,15 +78,6 @@ func main() {
 			log.Printf("gRPC server stopped: %v", serveErr)
 		}
 	}()
-
-
-	wal := store.GetWAL()
-	raftStorageFilePath := filepath.Join(cfg.DataDir, cfg.DBName+".raft")
-	node, err := raft.NewRaftNode(cfg.NodeID, cfg.Peers, raftStorageFilePath, wal)
-	if err != nil {
-		log.Fatalf("Node creation failed %v", err)
-	}
-	node.Initialize(context.Background())
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

@@ -305,3 +305,11 @@ func (n *RaftNode) sendHeartbeats(ctx context.Context) {
 		}
 	}
 }
+
+func (n *RaftNode) ExecuteAppendEntriesRPC(ctx context.Context, term uint64, leaderID uint64, prevLogIndex uint64, prevLogTerm uint64, entries []*pb.LogEntry, leaderCommit uint64) (currentTerm uint, success bool) {
+	return 0, false
+}
+
+func (n *RaftNode) ExecuteRequestVotesRPC(ctx context.Context, term uint64, candidateID uint64, lastLogIndex uint64, lastLogTerm uint64) (currentTerm uint, voteGranted bool) {
+	return 0, false
+}
