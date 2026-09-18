@@ -157,13 +157,17 @@ func calculateElectionTimerTimeout() (*time.Duration, error) {
 }
 
 func (n *RaftNode) resetElectionTimer() error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	return n.resetElectionTimerLocked()
+}
+
+func (n *RaftNode) resetElectionTimerLocked() error {
 	timeout, err := calculateElectionTimerTimeout()
 	if err != nil {
 		return err
 	}
-
-	n.mu.Lock()
-	defer n.mu.Unlock()
 
 	n.electionTimer.Reset(*timeout)
 
@@ -226,6 +230,8 @@ func (n *RaftNode) startElection(ctx context.Context) {
 }
 
 func (n *RaftNode) becomeLeader(ctx context.Context) {
+	n.mu.Lock()
+
 	log.Printf("Becoming raft leader...")
 
 	n.role = Leader
@@ -237,7 +243,17 @@ func (n *RaftNode) becomeLeader(ctx context.Context) {
 		n.matchIndex[peer.ID] = 0
 	}
 
+	n.mu.Unlock()
+
 	go n.heartbeatLoop(ctx)
+}
+
+func (n *RaftNode) becomeFollowerLocked(newCurrentTerm int) {
+	log.Printf("Becoming raft follower...")
+	
+	n.role = Follower
+	n.currentTerm = newCurrentTerm
+	n.votedFor = nil
 }
 
 func (n *RaftNode) requestVotes(ctx context.Context) int {
@@ -307,9 +323,48 @@ func (n *RaftNode) sendHeartbeats(ctx context.Context) {
 }
 
 func (n *RaftNode) ExecuteAppendEntriesRPC(ctx context.Context, term uint64, leaderID uint64, prevLogIndex uint64, prevLogTerm uint64, entries []*pb.LogEntry, leaderCommit uint64) (currentTerm uint, success bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if term < uint64(n.currentTerm) {
+		return uint(n.currentTerm), false
+	}
+
 	return 0, false
 }
 
 func (n *RaftNode) ExecuteRequestVotesRPC(ctx context.Context, term uint64, candidateID uint64, lastLogIndex uint64, lastLogTerm uint64) (currentTerm uint, voteGranted bool) {
-	return 0, false
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if term < uint64(n.currentTerm) {
+		return uint(n.currentTerm), false
+	}
+
+	if term > uint64(n.currentTerm) {
+		n.becomeFollowerLocked(int(term));
+	}
+
+	if n.votedFor != nil && *n.votedFor != int(candidateID) {
+		return uint(n.currentTerm), false
+	}
+
+	myLastLogIndex := len(n.log) - 1
+	myLastLogTerm := -1
+	if len(n.log) > 0 {
+		myLastLogTerm = n.log[myLastLogIndex].Term
+	}
+
+	comparison := compareLogRecency(myLastLogIndex, myLastLogTerm, int(lastLogIndex), int(lastLogTerm))
+
+	if comparison <= 0 {
+		newVotedFor := int(candidateID)
+		n.votedFor = &newVotedFor
+
+		n.resetElectionTimerLocked()
+
+		return uint(n.currentTerm), true
+	}
+
+	return uint(n.currentTerm), false
 }
