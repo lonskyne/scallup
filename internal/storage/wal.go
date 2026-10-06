@@ -17,7 +17,7 @@ type WALEntry struct {
 	Key       string `json:"key"`
 	Value     string `json:"value"` // Empty for DELETE
 
-	Term      int    `json:"term"`
+	Term int `json:"term"`
 }
 
 func NewWALEntry(entry *pb.LogEntry, index int) *WALEntry {
@@ -29,22 +29,22 @@ func NewWALEntry(entry *pb.LogEntry, index int) *WALEntry {
 		value = *entry.NewValue
 	}
 
-	return &WALEntry {
+	return &WALEntry{
 		Index:     index,
 		Operation: op,
 		Key:       entry.Key,
 		Value:     value,
 
-		Term:      int(entry.Term),
+		Term: int(entry.Term),
 	}
 }
 
-func WALAppend(old []WALEntry, values ...*pb.LogEntry) ([]WALEntry) {
-	lastIndex := len(old);
+func WALAppend(old []WALEntry, values ...*pb.LogEntry) []WALEntry {
+	lastIndex := len(old)
 	res := old
 
 	for i, value := range values {
-		res = append(res, *NewWALEntry(value, lastIndex + 1 + i))
+		res = append(res, *NewWALEntry(value, lastIndex+1+i))
 	}
 
 	return res
@@ -118,10 +118,10 @@ func (w *WAL) GetFullLog() ([]WALEntry, error) {
 	defer w.mu.Unlock()
 
 	var fullLog []WALEntry
-	
+
 	scanner := bufio.NewScanner(w.walFile)
 	for scanner.Scan() {
-		var logEntry WALEntry 
+		var logEntry WALEntry
 
 		err := json.Unmarshal(scanner.Bytes(), &logEntry)
 		if err != nil {

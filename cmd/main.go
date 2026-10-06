@@ -53,7 +53,7 @@ func main() {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
-	
+
 	// Create the raft node
 	wal := store.GetWAL()
 	raftStorageFilePath := filepath.Join(cfg.DataDir, cfg.DBName+".raft")

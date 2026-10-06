@@ -15,7 +15,7 @@ import (
 type Role int
 
 const (
-	Follower  Role = iota
+	Follower Role = iota
 	Candidate
 	Leader
 )
@@ -23,25 +23,25 @@ const (
 const minElectionTimeoutMs = 10000
 
 type RaftNode struct {
-	mu            sync.Mutex
+	mu sync.Mutex
 
 	// Persistent state
-	currentTerm   int
-	votedFor      *int
-	log           []storage.WALEntry
+	currentTerm int
+	votedFor    *int
+	log         []storage.WALEntry
 
 	// Volatile state
-	commitIndex   int
-	lastApplied   int
+	commitIndex int
+	lastApplied int
 
 	// Volatile state on leaders
-	nextIndex     map[int]int
-	matchIndex    map[int]int
-	
-	nodeID        int
-	role          Role
-	peers         []RaftPeer
-	storage       *RaftStorage
+	nextIndex  map[int]int
+	matchIndex map[int]int
+
+	nodeID  int
+	role    Role
+	peers   []RaftPeer
+	storage *RaftStorage
 
 	electionTimer *time.Timer
 	heartbeatStop chan struct{}
@@ -99,7 +99,7 @@ func NewRaftNode(nodeID int, peers map[int]string, storageFilePath string, wal *
 		commitIndex: 0,
 		lastApplied: 0,
 
-		nextIndex: nil,
+		nextIndex:  nil,
 		matchIndex: nil,
 
 		nodeID:  nodeID,
@@ -113,44 +113,44 @@ func NewRaftNode(nodeID int, peers map[int]string, storageFilePath string, wal *
 }
 
 func (n *RaftNode) Initialize(ctx context.Context) error {
-		log.Printf("Initializing raft node...")
-	
-    n.mu.Lock()
-    term, votedFor, err := n.storage.Load()
-    if err != nil {
-        n.mu.Unlock()
-				return err
-    }
+	log.Printf("Initializing raft node...")
 
-		n.currentTerm = term
-		n.votedFor = votedFor
+	n.mu.Lock()
+	term, votedFor, err := n.storage.Load()
+	if err != nil {
+		n.mu.Unlock()
+		return err
+	}
 
-		n.role = Follower
+	n.currentTerm = term
+	n.votedFor = votedFor
 
-		// Add dummy log entry at index 0
-		n.log = []storage.WALEntry{
-			{
-				Term: 0,
-			},
-		}
+	n.role = Follower
 
-    n.commitIndex = 0
-    n.lastApplied = 0
-		n.nextIndex = make(map[int]int)
-		n.matchIndex = make(map[int]int)
+	// Add dummy log entry at index 0
+	n.log = []storage.WALEntry{
+		{
+			Term: 0,
+		},
+	}
 
-    n.heartbeatStop = make(chan struct{})
+	n.commitIndex = 0
+	n.lastApplied = 0
+	n.nextIndex = make(map[int]int)
+	n.matchIndex = make(map[int]int)
 
-    n.mu.Unlock()
+	n.heartbeatStop = make(chan struct{})
 
-		err = n.resetElectionTimer()
-		if err != nil {
-			return err
-		}
+	n.mu.Unlock()
 
-    go n.electionLoop(ctx)
+	err = n.resetElectionTimer()
+	if err != nil {
+		return err
+	}
 
-		return nil
+	go n.electionLoop(ctx)
+
+	return nil
 }
 
 func calculateElectionTimerTimeout() (*time.Duration, error) {
@@ -159,8 +159,8 @@ func calculateElectionTimerTimeout() (*time.Duration, error) {
 		return nil, err
 	}
 
-	timeout := time.Duration(rand.Int64() + minElectionTimeoutMs) * time.Millisecond
-	
+	timeout := time.Duration(rand.Int64()+minElectionTimeoutMs) * time.Millisecond
+
 	return &timeout, nil
 }
 
@@ -184,7 +184,7 @@ func (n *RaftNode) resetElectionTimerLocked() error {
 
 func (n *RaftNode) electionLoop(ctx context.Context) {
 	for {
-		<- n.electionTimer.C
+		<-n.electionTimer.C
 
 		n.mu.Lock()
 
@@ -200,17 +200,17 @@ func (n *RaftNode) electionLoop(ctx context.Context) {
 }
 
 func (n *RaftNode) heartbeatLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Duration(minElectionTimeoutMs / 3) * time.Millisecond)
+	ticker := time.NewTicker(time.Duration(minElectionTimeoutMs/3) * time.Millisecond)
 	defer ticker.Stop()
 
 	beating := true
 	for beating {
-		select { 
-		case <- ticker.C:
+		select {
+		case <-ticker.C:
 			n.sendHeartbeats(ctx)
 
-		case <- n.heartbeatStop:
-			beating = false;
+		case <-n.heartbeatStop:
+			beating = false
 		}
 	}
 }
@@ -222,7 +222,7 @@ func (n *RaftNode) startElection(ctx context.Context) {
 
 	n.role = Candidate
 	n.currentTerm++
-	
+
 	n.mu.Unlock()
 
 	n.resetElectionTimer()
@@ -232,7 +232,7 @@ func (n *RaftNode) startElection(ctx context.Context) {
 
 	log.Printf("Got %d votes out of %d nodes.", totalVotesGranted, totalNodes)
 
-	if(totalVotesGranted > (totalNodes / 2)) {
+	if totalVotesGranted > (totalNodes / 2) {
 		n.becomeLeader(ctx)
 	}
 }
@@ -258,7 +258,7 @@ func (n *RaftNode) becomeLeader(ctx context.Context) {
 
 func (n *RaftNode) becomeFollowerLocked(newCurrentTerm int) {
 	log.Printf("Becoming raft follower...")
-	
+
 	n.role = Follower
 	n.currentTerm = newCurrentTerm
 	n.votedFor = nil
@@ -303,7 +303,7 @@ func (n *RaftNode) requestVotes(ctx context.Context) int {
 		n.mu.Unlock()
 	}
 
-	return totalVotesGranted 
+	return totalVotesGranted
 }
 
 func (n *RaftNode) sendHeartbeats(ctx context.Context) {
@@ -338,10 +338,9 @@ func (n *RaftNode) ExecuteAppendEntriesRPC(ctx context.Context, term uint64, lea
 	if term < uint64(n.currentTerm) {
 		return uint(n.currentTerm), false
 	}
-	
 
 	if term > uint64(n.currentTerm) {
-		n.becomeFollowerLocked(int(term));
+		n.becomeFollowerLocked(int(term))
 	}
 
 	n.resetElectionTimerLocked()
@@ -391,7 +390,7 @@ func (n *RaftNode) ExecuteRequestVotesRPC(ctx context.Context, term uint64, cand
 	}
 
 	if term > uint64(n.currentTerm) {
-		n.becomeFollowerLocked(int(term));
+		n.becomeFollowerLocked(int(term))
 	}
 
 	if n.votedFor != nil && *n.votedFor != int(candidateID) {

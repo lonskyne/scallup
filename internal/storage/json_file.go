@@ -139,4 +139,3 @@ func (m *JSONFileStore) loadJSONFileIfExists(decoder *json.Decoder) error {
 
 	return nil
 }
-
