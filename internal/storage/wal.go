@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/lonskyne/scallup/pkg/pb"
 )
 
 // WALEntry represents a single operation in the log
@@ -16,6 +18,36 @@ type WALEntry struct {
 	Value     string `json:"value"` // Empty for DELETE
 
 	Term      int    `json:"term"`
+}
+
+func NewWALEntry(entry *pb.LogEntry, index int) *WALEntry {
+	op := "DELETE"
+	value := string("")
+
+	if entry.NewValue != nil {
+		op = "SET"
+		value = *entry.NewValue
+	}
+
+	return &WALEntry {
+		Index:     index,
+		Operation: op,
+		Key:       entry.Key,
+		Value:     value,
+
+		Term:      int(entry.Term),
+	}
+}
+
+func WALAppend(old []WALEntry, values ...*pb.LogEntry) ([]WALEntry) {
+	lastIndex := len(old);
+	res := old
+
+	for i, value := range values {
+		res = append(res, *NewWALEntry(value, lastIndex + 1 + i))
+	}
+
+	return res
 }
 
 // WAL handles write-ahead logging

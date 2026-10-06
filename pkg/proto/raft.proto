@@ -22,8 +22,9 @@ message RequestVoteResponse {
 }
 
 message LogEntry {
-  string          key       = 1;
-  optional string new_value = 2;
+  uint64          term      = 1;
+  string          key       = 2;
+  optional string new_value = 3;
 }
 
 message AppendEntriesRequest {

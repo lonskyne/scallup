@@ -126,6 +126,14 @@ func (n *RaftNode) Initialize(ctx context.Context) error {
 		n.votedFor = votedFor
 
 		n.role = Follower
+
+		// Add dummy log entry at index 0
+		n.log = []storage.WALEntry{
+			{
+				Term: 0,
+			},
+		}
+
     n.commitIndex = 0
     n.lastApplied = 0
 		n.nextIndex = make(map[int]int)
@@ -322,12 +330,53 @@ func (n *RaftNode) sendHeartbeats(ctx context.Context) {
 	}
 }
 
-func (n *RaftNode) ExecuteAppendEntriesRPC(ctx context.Context, term uint64, leaderID uint64, prevLogIndex uint64, prevLogTerm uint64, entries []*pb.LogEntry, leaderCommit uint64) (currentTerm uint, success bool) {
+func (n *RaftNode) ExecuteAppendEntriesRPC(ctx context.Context, term uint64, leaderID uint64, prevLogIndex uint64, prevLogTerm uint64, pbEntries []*pb.LogEntry, leaderCommit uint64) (currentTerm uint, success bool) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
+	//1. Reply false if term < currentTerm (5.1)
 	if term < uint64(n.currentTerm) {
 		return uint(n.currentTerm), false
+	}
+	
+
+	if term > uint64(n.currentTerm) {
+		n.becomeFollowerLocked(int(term));
+	}
+
+	n.resetElectionTimerLocked()
+
+	//2. Reply false if log doesn't contain ain entry at prevLogIndex whose term matches prevLogTerm (5.3)
+	if prevLogIndex >= uint64(len(n.log)) {
+		return uint(n.currentTerm), false
+	}
+
+	if n.log[prevLogIndex].Term != int(prevLogTerm) {
+		return uint(n.currentTerm), false
+	}
+
+	//3. If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (5.3) &
+	//4. Append any new entries mpt already in the log.
+	for i, entry := range pbEntries {
+		index := prevLogIndex + 1 + uint64(i)
+
+		if index >= uint64(len(n.log)) {
+			n.log = storage.WALAppend(n.log, pbEntries[i:]...)
+			break
+		}
+
+		if entry.Term != uint64(n.log[index].Term) {
+			n.log = n.log[:index]
+			n.log = storage.WALAppend(n.log, pbEntries[i:]...)
+			break
+		}
+	}
+
+	//5. If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index od last entry)
+	if leaderCommit > uint64(n.commitIndex) {
+		indexLastNewEntry := len(n.log) - 1
+
+		n.commitIndex = min(int(leaderCommit), indexLastNewEntry)
 	}
 
 	return 0, false
