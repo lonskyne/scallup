@@ -33,9 +33,18 @@ func main() {
 		return
 	}
 	defer store.Close()
+	
+	// Create the raft node
+	wal := store.GetWAL()
+	raftStorageFilePath := filepath.Join(cfg.DataDir, cfg.DBName+".raft")
+	node, err := raft.NewRaftNode(cfg.NodeID, cfg.Peers, raftStorageFilePath, wal)
+	if err != nil {
+		log.Fatalf("Node creation failed %v", err)
+	}
+	node.Initialize(context.Background())
 
 	// Setup routes
-	router := api.SetupRoutes(store)
+	router := api.SetupRoutes(store, node)
 
 	// Create server
 	server := &http.Server{
@@ -53,15 +62,6 @@ func main() {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
-
-	// Create the raft node
-	wal := store.GetWAL()
-	raftStorageFilePath := filepath.Join(cfg.DataDir, cfg.DBName+".raft")
-	node, err := raft.NewRaftNode(cfg.NodeID, cfg.Peers, raftStorageFilePath, wal)
-	if err != nil {
-		log.Fatalf("Node creation failed %v", err)
-	}
-	node.Initialize(context.Background())
 
 	// Create and start the gRPC server
 	grpcServer := grpc.NewServer()

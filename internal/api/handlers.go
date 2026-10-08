@@ -5,16 +5,21 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/lonskyne/scallup/internal/raft"
 	"github.com/lonskyne/scallup/internal/storage"
 	"github.com/lonskyne/scallup/pkg/types"
 )
 
 type Handlers struct {
-	storage storage.Engine
+	storage  storage.Engine
+	raftNode *raft.RaftNode
 }
 
-func NewHandlers(storage storage.Engine) *Handlers {
-	return &Handlers{storage: storage}
+func NewHandlers(storage storage.Engine, raftNode *raft.RaftNode) *Handlers {
+	return &Handlers{
+		storage:  storage,
+		raftNode: raftNode,
+	}
 }
 
 func (h *Handlers) GetKey(w http.ResponseWriter, r *http.Request) {
@@ -97,5 +102,23 @@ func (h *Handlers) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status": "OK",
+	})
+}
+
+func (h *Handlers) PauseRaftNode(w http.ResponseWriter, r *http.Request) {
+	h.raftNode.Pause()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"paused": "True",
+	})
+}
+
+func (h *Handlers) ResumeRaftNode(w http.ResponseWriter, r *http.Request) {
+	h.raftNode.Resume()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"paused": "False",
 	})
 }

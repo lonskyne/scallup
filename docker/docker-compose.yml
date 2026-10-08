@@ -8,6 +8,7 @@ services:
       - env/node1.env
     ports:
       - "50051:50051"
+      - "8081:8081"
 
   node2:
     build:
@@ -18,6 +19,7 @@ services:
       - env/node2.env
     ports:
       - "50052:50051"
+      - "8082:8081"
 
   node3:
     build:
@@ -28,6 +30,7 @@ services:
       - env/node3.env
     ports:
       - "50053:50051"
+      - "8083:8081"
 
   node4:
     build:
@@ -38,6 +41,7 @@ services:
       - env/node4.env
     ports:
       - "50054:50051"
+      - "8084:8081"
 
   node5:
     build:
@@ -48,3 +52,4 @@ services:
       - env/node5.env
     ports:
       - "50055:50051"
+      - "8085:8081"

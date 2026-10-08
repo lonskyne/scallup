@@ -3,6 +3,7 @@ package raft
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"log"
 	"math/big"
 	"sync"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/lonskyne/scallup/internal/storage"
 	"github.com/lonskyne/scallup/pkg/pb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Role int
@@ -24,6 +27,8 @@ const minElectionTimeoutMs = 10000
 
 type RaftNode struct {
 	mu sync.Mutex
+
+	paused bool
 
 	// Persistent state
 	currentTerm int
@@ -122,6 +127,8 @@ func (n *RaftNode) Initialize(ctx context.Context) error {
 		return err
 	}
 
+	n.paused = false
+
 	n.currentTerm = term
 	n.votedFor = votedFor
 
@@ -151,6 +158,27 @@ func (n *RaftNode) Initialize(ctx context.Context) error {
 	go n.electionLoop(ctx)
 
 	return nil
+}
+
+func (n *RaftNode) Pause() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.paused = true
+}
+
+func (n *RaftNode) Resume() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.paused = false
+}
+
+func (n *RaftNode) IsPaused() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	return n.paused
 }
 
 func calculateElectionTimerTimeout() (*time.Duration, error) {
@@ -278,26 +306,21 @@ func (n *RaftNode) requestVotes(ctx context.Context) int {
 	totalVotesGranted := 1
 
 	for _, peer := range n.peers {
-		resp, err := peer.Client.RequestVote(ctx, &pb.RequestVoteRequest{
-			Term:         uint64(n.currentTerm),
-			CandidateId:  uint64(n.nodeID),
-			LastLogIndex: uint64(lastLogIndex),
-			LastLogTerm:  uint64(lastLogTerm),
-		})
+		term, voteGranted, err := n.SendRequestVotesRPC(ctx, &peer, lastLogIndex, lastLogTerm)
 
-		if err != nil {
+		if err != nil && status.Code(err) != codes.Unavailable {
 			log.Printf("Requesting vote from %d failed: %v", peer.ID, err)
 			return 0
 		}
 
-		if resp.VoteGranted {
+		if voteGranted {
 			totalVotesGranted++
 		}
 
 		n.mu.Lock()
 
-		if resp.Term > uint64(n.currentTerm) {
-			n.currentTerm = int(resp.Term)
+		if term > n.currentTerm {
+			n.currentTerm = term
 		}
 
 		n.mu.Unlock()
@@ -316,13 +339,7 @@ func (n *RaftNode) sendHeartbeats(ctx context.Context) {
 	}
 
 	for _, peer := range n.peers {
-		_, err := peer.Client.AppendEntries(ctx, &pb.AppendEntriesRequest{
-			Term:         uint64(n.currentTerm),
-			LeaderId:     uint64(n.nodeID),
-			PrevLogIndex: uint64(prevLogIndex),
-			PrevLogTerm:  uint64(prevLogTerm),
-			Entries:      nil,
-		})
+		_, _, err := n.SendAppendEntriesRPC(ctx, &peer, prevLogIndex, prevLogTerm, nil)
 
 		if err != nil {
 			log.Printf("Sending heartbeat to %d failed: %v", peer.ID, err)
@@ -415,4 +432,44 @@ func (n *RaftNode) ExecuteRequestVotesRPC(ctx context.Context, term uint64, cand
 	}
 
 	return uint(n.currentTerm), false
+}
+
+func (n *RaftNode) SendRequestVotesRPC(ctx context.Context, peer *RaftPeer, lastLogIndex int, lastLogTerm int) (term int, voteGranted bool, err error) {
+	if n.IsPaused() {
+		return 0, false, fmt.Errorf("raft node paused")
+	}
+
+	resp, err := peer.Client.RequestVote(ctx, &pb.RequestVoteRequest{
+		Term:         uint64(n.currentTerm),
+		CandidateId:  uint64(n.nodeID),
+		LastLogIndex: uint64(lastLogIndex),
+		LastLogTerm:  uint64(lastLogTerm),
+	})
+
+	if err != nil {
+		return 0, false, err
+	}
+
+	return int(resp.Term), resp.VoteGranted, nil
+}
+
+func (n *RaftNode) SendAppendEntriesRPC(ctx context.Context, peer *RaftPeer, prevLogIndex int, prevLogTerm int, entires []storage.WALEntry) (term int, success bool, err error) {
+	if n.IsPaused() {
+		return 0, false, fmt.Errorf("raft node paused")
+	}
+
+	resp, err := peer.Client.AppendEntries(ctx, &pb.AppendEntriesRequest{
+		Term:         uint64(n.currentTerm),
+		LeaderId:     uint64(n.nodeID),
+		PrevLogIndex: uint64(prevLogIndex),
+		PrevLogTerm:  uint64(prevLogTerm),
+		// TODO: Implement translating []WALEntry to []pb.LogEntry
+		Entries:      nil,
+	})
+
+	if err != nil {
+		return 0, false, err
+	}
+
+	return int(resp.Term), resp.Success, nil
 }

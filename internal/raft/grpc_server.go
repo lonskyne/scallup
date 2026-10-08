@@ -5,6 +5,8 @@ import (
 	"log"
 
 	"github.com/lonskyne/scallup/pkg/pb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type RaftServer struct {
@@ -20,6 +22,10 @@ func NewRaftServer(raftNode *RaftNode) *RaftServer {
 }
 
 func (rs *RaftServer) RequestVote(ctx context.Context, req *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+	if rs.raftNode.IsPaused() {
+		return nil, status.Error(codes.Unavailable, "raft node is paused")
+	}
+	
 	log.Printf("Received RequestVote rpc")
 
 	term, voteGranted := rs.raftNode.ExecuteRequestVotesRPC(ctx, req.Term, req.CandidateId, req.LastLogIndex, req.LastLogTerm)
@@ -31,6 +37,10 @@ func (rs *RaftServer) RequestVote(ctx context.Context, req *pb.RequestVoteReques
 }
 
 func (rs *RaftServer) AppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
+	if rs.raftNode.IsPaused() {
+		return nil, status.Error(codes.Unavailable, "raft node is paused")
+	}
+
 	log.Printf("Received AppendEntries rpc")
 
 	term, success := rs.raftNode.ExecuteAppendEntriesRPC(ctx, req.Term, req.LeaderId, req.PrevLogIndex, req.PrevLogTerm, req.Entries, req.LeaderCommit)

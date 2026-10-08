@@ -3,11 +3,12 @@ package api
 import (
 	"net/http"
 
+	"github.com/lonskyne/scallup/internal/raft"
 	"github.com/lonskyne/scallup/internal/storage"
 )
 
-func SetupRoutes(storage storage.Engine) http.Handler {
-	handlers := NewHandlers(storage)
+func SetupRoutes(storage storage.Engine, raftNode *raft.RaftNode) http.Handler {
+	handlers := NewHandlers(storage, raftNode)
 
 	mux := http.NewServeMux()
 
@@ -17,6 +18,9 @@ func SetupRoutes(storage storage.Engine) http.Handler {
 	mux.HandleFunc("GET /api/v1/keys", handlers.GetAllKeys)
 
 	mux.HandleFunc("GET /health", handlers.HealthCheck)
+
+	mux.HandleFunc("POST /pause", handlers.PauseRaftNode)
+	mux.HandleFunc("POST /resume", handlers.ResumeRaftNode)
 
 	return LoggingMiddleware(mux)
 }
