@@ -113,7 +113,7 @@ func NewRaftNode(nodeID int, peers map[int]string, storageFilePath string, wal *
 		storage: storage,
 
 		electionTimer: electionTimer,
-		heartbeatStop: make(chan struct{}),
+		heartbeatStop: nil,
 	}, nil
 }
 
@@ -145,8 +145,6 @@ func (n *RaftNode) Initialize(ctx context.Context) error {
 	n.lastApplied = 0
 	n.nextIndex = make(map[int]int)
 	n.matchIndex = make(map[int]int)
-
-	n.heartbeatStop = make(chan struct{})
 
 	n.mu.Unlock()
 
@@ -279,6 +277,8 @@ func (n *RaftNode) becomeLeader(ctx context.Context) {
 		n.matchIndex[peer.ID] = 0
 	}
 
+	n.heartbeatStop = make(chan struct{})
+
 	n.mu.Unlock()
 
 	go n.heartbeatLoop(ctx)
@@ -286,6 +286,10 @@ func (n *RaftNode) becomeLeader(ctx context.Context) {
 
 func (n *RaftNode) becomeFollowerLocked(newCurrentTerm int) {
 	log.Printf("Becoming raft follower...")
+
+	if n.role == Leader {
+		close(n.heartbeatStop)
+	}
 
 	n.role = Follower
 	n.currentTerm = newCurrentTerm
