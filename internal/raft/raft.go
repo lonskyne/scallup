@@ -457,9 +457,15 @@ func (n *RaftNode) SendRequestVotesRPC(ctx context.Context, peer *RaftPeer, last
 	return int(resp.Term), resp.VoteGranted, nil
 }
 
-func (n *RaftNode) SendAppendEntriesRPC(ctx context.Context, peer *RaftPeer, prevLogIndex int, prevLogTerm int, entires []storage.WALEntry) (term int, success bool, err error) {
+func (n *RaftNode) SendAppendEntriesRPC(ctx context.Context, peer *RaftPeer, prevLogIndex int, prevLogTerm int, entries []storage.WALEntry) (term int, success bool, err error) {
 	if n.IsPaused() {
 		return 0, false, fmt.Errorf("raft node paused")
+	}
+
+	newEntries := make([]*pb.LogEntry, len(entries))
+
+	for i, entry := range(entries) {
+		newEntries[i] = entry.ToProto()
 	}
 
 	resp, err := peer.Client.AppendEntries(ctx, &pb.AppendEntriesRequest{
@@ -467,8 +473,7 @@ func (n *RaftNode) SendAppendEntriesRPC(ctx context.Context, peer *RaftPeer, pre
 		LeaderId:     uint64(n.nodeID),
 		PrevLogIndex: uint64(prevLogIndex),
 		PrevLogTerm:  uint64(prevLogTerm),
-		// TODO: Implement translating []WALEntry to []pb.LogEntry
-		Entries:      nil,
+		Entries:      newEntries,
 	})
 
 	if err != nil {

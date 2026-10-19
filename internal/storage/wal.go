@@ -50,6 +50,14 @@ func WALAppend(old []WALEntry, values ...*pb.LogEntry) []WALEntry {
 	return res
 }
 
+func (e WALEntry) ToProto() *pb.LogEntry {
+	return &pb.LogEntry{
+		Term:     uint64(e.Term),
+		Key:      e.Key,
+		NewValue: &e.Value,
+	}
+}
+
 // WAL handles write-ahead logging
 type WAL struct {
 	mu        sync.Mutex
