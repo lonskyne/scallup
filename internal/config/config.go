@@ -7,11 +7,16 @@ import (
 	"strings"
 )
 
+type Peer struct {
+	RaftAddr string
+	APIAddr  string
+}
+
 type Config struct {
 	NodeID       int
 	Port         int
 	RaftGrpcPort int
-	Peers        map[int]string
+	Peers        map[int]Peer
 	DataDir      string
 	DBType       string
 	DBName       string
@@ -54,10 +59,10 @@ func getEnvInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func getEnvPeers(key string) map[int]string {
+func getEnvPeers(key string) map[int]Peer {
 	value := os.Getenv(key)
 
-	peers := make(map[int]string)
+	peers := make(map[int]Peer)
 
 	if value == "" {
 		return peers
@@ -75,7 +80,12 @@ func getEnvPeers(key string) map[int]string {
 			continue
 		}
 
-		peers[id] = parts[1]
+		addresses := strings.SplitN(parts[1], ";", 2)
+
+		peers[id] = Peer {
+			RaftAddr: addresses[0],
+			APIAddr:  addresses[1],
+		}
 	}
 
 	return peers

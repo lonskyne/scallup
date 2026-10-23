@@ -3,12 +3,13 @@ package api
 import (
 	"net/http"
 
+	"github.com/lonskyne/scallup/internal/config"
 	"github.com/lonskyne/scallup/internal/raft"
 	"github.com/lonskyne/scallup/internal/storage"
 )
 
-func SetupRoutes(storage storage.Engine, raftNode *raft.RaftNode) http.Handler {
-	handlers := NewHandlers(storage, raftNode)
+func SetupRoutes(storage storage.Engine, raftNode *raft.RaftNode, cfg *config.Config) http.Handler {
+	handlers := NewHandlers(storage, raftNode, cfg)
 
 	mux := http.NewServeMux()
 

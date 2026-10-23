@@ -10,3 +10,11 @@ type ErrorResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
+
+type NotLeaderError struct {
+    LeaderID int
+}
+
+func (e *NotLeaderError) Error() string {
+    return "request received by a node that is not the leader"
+}

@@ -2,9 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/lonskyne/scallup/internal/config"
 	"github.com/lonskyne/scallup/internal/raft"
 	"github.com/lonskyne/scallup/internal/storage"
 	"github.com/lonskyne/scallup/pkg/types"
@@ -13,18 +15,24 @@ import (
 type Handlers struct {
 	storage  storage.Engine
 	raftNode *raft.RaftNode
+	
+	cfg      *config.Config
 }
 
-func NewHandlers(storage storage.Engine, raftNode *raft.RaftNode) *Handlers {
+func NewHandlers(storage storage.Engine, raftNode *raft.RaftNode, cfg *config.Config) *Handlers {
 	return &Handlers{
 		storage:  storage,
 		raftNode: raftNode,
+
+		cfg:      cfg,
 	}
 }
 
+const pathPrefix = "/api/v1/key/"
+
 func (h *Handlers) GetKey(w http.ResponseWriter, r *http.Request) {
 	// Extract key from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/key/")
+	path := strings.TrimPrefix(r.URL.Path, pathPrefix)
 	if path == "" {
 		http.Error(w, "Key is required", http.StatusBadRequest)
 		return
@@ -51,8 +59,8 @@ func (h *Handlers) GetKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) PutKey(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/key/")
-	if path == "" {
+	key := strings.TrimPrefix(r.URL.Path, pathPrefix)
+	if key == "" {
 		http.Error(w, "Key is required", http.StatusBadRequest)
 		return
 	}
@@ -63,8 +71,17 @@ func (h *Handlers) PutKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.storage.Put(r.Context(), path, kv.Value); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := h.raftNode.Put(r.Context(), key, kv.Value); err != nil {
+		var notLeaderErr *types.NotLeaderError
+
+		if errors.As(err, &notLeaderErr) {
+			target := *r.URL
+			target.Host = h.cfg.Peers[notLeaderErr.LeaderID].APIAddr
+
+			http.Redirect(w, r, target.String(), http.StatusTemporaryRedirect)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -73,7 +90,7 @@ func (h *Handlers) PutKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) DeleteKey(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/key/")
+	path := strings.TrimPrefix(r.URL.Path, pathPrefix)
 	if path == "" {
 		http.Error(w, "Key is required", http.StatusBadRequest)
 		return

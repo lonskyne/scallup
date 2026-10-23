@@ -9,8 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lonskyne/scallup/internal/config"
 	"github.com/lonskyne/scallup/internal/storage"
 	"github.com/lonskyne/scallup/pkg/pb"
+	pkgtypes "github.com/lonskyne/scallup/pkg/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -43,34 +45,40 @@ type RaftNode struct {
 	nextIndex  map[int]int
 	matchIndex map[int]int
 
-	nodeID  int
-	role    Role
-	peers   []RaftPeer
+	nodeID   int
+	role     Role
+	peers    []RaftPeer
+	leaderID *int
+
 	storage *RaftStorage
 
 	electionTimer *time.Timer
 	heartbeatStop chan struct{}
+
+	storageEngine storage.Engine
 }
 
 type RaftPeer struct {
-	ID      int
-	Address string
-	Client  *RaftClient
+	ID          int
+	RaftAddress string
+	APIAddress  string
+	Client      *RaftClient
 }
 
-func NewRaftNode(nodeID int, peers map[int]string, storageFilePath string, wal *storage.WAL) (*RaftNode, error) {
+func NewRaftNode(nodeID int, peers map[int]config.Peer, storageFilePath string, wal *storage.WAL, storageEngine storage.Engine) (*RaftNode, error) {
 	peersArr := make([]RaftPeer, len(peers))
 
 	i := 0
-	for id, addr := range peers {
-		client, err := NewRaftClient(addr)
+	for id, peer := range peers {
+		client, err := NewRaftClient(peer.RaftAddr)
 		if err != nil {
 			return nil, err
 		}
 
 		peersArr[i] = RaftPeer{
 			ID:      id,
-			Address: addr,
+			RaftAddress: peer.RaftAddr,
+			APIAddress: peer.APIAddr,
 			Client:  client,
 		}
 
@@ -107,13 +115,17 @@ func NewRaftNode(nodeID int, peers map[int]string, storageFilePath string, wal *
 		nextIndex:  nil,
 		matchIndex: nil,
 
-		nodeID:  nodeID,
-		role:    Follower,
-		peers:   peersArr,
+		nodeID:   nodeID,
+		role:     Follower,
+		peers:    peersArr,
+		leaderID: nil,
+
 		storage: storage,
 
 		electionTimer: electionTimer,
 		heartbeatStop: nil,
+
+		storageEngine: storageEngine,
 	}, nil
 }
 
@@ -269,6 +281,7 @@ func (n *RaftNode) becomeLeader(ctx context.Context) {
 	log.Printf("Becoming raft leader...")
 
 	n.role = Leader
+	n.leaderID = &n.nodeID
 
 	lastLogIndex := len(n.log)
 
@@ -360,13 +373,17 @@ func (n *RaftNode) ExecuteAppendEntriesRPC(ctx context.Context, term uint64, lea
 		return uint(n.currentTerm), false
 	}
 
+	// Persist the new leader ID for redirection purposes
+	newLeaderID := int(leaderID)
+	n.leaderID = &newLeaderID
+
 	if term > uint64(n.currentTerm) {
 		n.becomeFollowerLocked(int(term))
 	}
 
 	n.resetElectionTimerLocked()
 
-	//2. Reply false if log doesn't contain ain entry at prevLogIndex whose term matches prevLogTerm (5.3)
+	//2. Reply false if log doesn't contain an entry at prevLogIndex whose term matches prevLogTerm (5.3)
 	if prevLogIndex >= uint64(len(n.log)) {
 		return uint(n.currentTerm), false
 	}
@@ -481,4 +498,22 @@ func (n *RaftNode) SendAppendEntriesRPC(ctx context.Context, peer *RaftPeer, pre
 	}
 
 	return int(resp.Term), resp.Success, nil
+}
+
+func (n *RaftNode) Put(ctx context.Context, key string, value string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.role != Leader {
+		if n.leaderID != nil {
+			return &pkgtypes.NotLeaderError {
+				LeaderID: *n.leaderID,
+			}
+		} else {
+			return fmt.Errorf("Raft leader not yet elected")
+		}
+	}
+
+	n.storageEngine.Put(ctx, key, value)
+	return nil
 }

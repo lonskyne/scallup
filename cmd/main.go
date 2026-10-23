@@ -37,14 +37,14 @@ func main() {
 	// Create the raft node
 	wal := store.GetWAL()
 	raftStorageFilePath := filepath.Join(cfg.DataDir, cfg.DBName+".raft")
-	node, err := raft.NewRaftNode(cfg.NodeID, cfg.Peers, raftStorageFilePath, wal)
+	node, err := raft.NewRaftNode(cfg.NodeID, cfg.Peers, raftStorageFilePath, wal, store)
 	if err != nil {
 		log.Fatalf("Node creation failed %v", err)
 	}
 	node.Initialize(context.Background())
 
 	// Setup routes
-	router := api.SetupRoutes(store, node)
+	router := api.SetupRoutes(store, node, cfg)
 
 	// Create server
 	server := &http.Server{
